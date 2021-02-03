@@ -18,11 +18,17 @@ export AZURE_CLI_DIAGNOSTICS_TELEMETRY=
 output=$(az extension list-available --query [].name -otsv)
 exit_code=0
 
-for ext in $output; do
-
+skip_exts=(
     # TODO: Remove when ML extension is compatible with CLI 2.0.69 core
     # https://github.com/Azure/azure-cli-extensions/issues/826
-    if [ $ext == 'azure-cli-ml' ]; then
+    "azure-cli-ml"
+    # It requires admin permission to install system dependencies for rdbms-connect
+    # which cannot be granted in ADO
+    "rdbms-connect"
+)
+
+for ext in $output; do
+    if [[ " ${skip_exts[@]} " =~ " $ext " ]]; then
         continue
     fi
 
