@@ -22,9 +22,6 @@ skip_exts=(
     # TODO: Remove when ML extension is compatible with CLI 2.0.69 core
     # https://github.com/Azure/azure-cli-extensions/issues/826
     "azure-cli-ml"
-    # It requires admin permission to install system dependencies for rdbms-connect
-    # which cannot be granted in ADO
-    "rdbms-connect"
 )
 
 for ext in $output; do
