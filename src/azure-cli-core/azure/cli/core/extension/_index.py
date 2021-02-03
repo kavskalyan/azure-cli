@@ -8,7 +8,7 @@ from knack.util import CLIError
 
 logger = get_logger(__name__)
 
-DEFAULT_INDEX_URL = "https://raw.githubusercontent.com/azclibot/azure-cli-extensions/4b54835a640f5a9c4289a3af99fe27666e22ae6a/src/index.json"
+DEFAULT_INDEX_URL = "https://aka.ms/azure-cli-extension-index-v1"
 
 ERR_TMPL_EXT_INDEX = 'Unable to get extension index.\n'
 ERR_TMPL_NON_200 = '{}Server returned status code {{}} for {{}}'.format(ERR_TMPL_EXT_INDEX)
