@@ -22,7 +22,7 @@ from azure.cli.command_modules.cosmosdb._validators import (
     validate_scope)
 
 from azure.cli.command_modules.cosmosdb.actions import (
-    CreateLocation)
+    CreateLocation, CreateDatabaseRestoreResource, UtcDatetimeAction)
 from azure.cli.command_modules.cosmosdb.custom import (
     CosmosKeyTypes)
 
@@ -53,7 +53,7 @@ class ThroughputTypes(str, Enum):
 
 def load_arguments(self, _):
     from knack.arguments import CLIArgumentType
-    from azure.mgmt.cosmosdb.models import KeyKind, DefaultConsistencyLevel, DatabaseAccountKind, TriggerType, TriggerOperation, ServerVersion, NetworkAclBypass
+    from azure.mgmt.cosmosdb.models import KeyKind, DefaultConsistencyLevel, DatabaseAccountKind, TriggerType, TriggerOperation, ServerVersion, NetworkAclBypass, BackupPolicyType
 
     with self.argument_context('cosmosdb') as c:
         c.argument('account_name', arg_type=name_type, help='Name of the Cosmos DB database account', completer=get_resource_name_completion_list('Microsoft.DocumentDb/databaseAccounts'), id_part='name')
@@ -64,6 +64,10 @@ def load_arguments(self, _):
         c.argument('key_uri', help="The URI of the key vault", is_preview=True)
         c.argument('enable_free_tier', arg_type=get_three_state_flag(), help="If enabled the account is free-tier.", is_preview=True)
         c.argument('assign_identity', nargs='*', help="accept system or user assigned identities separated by spaces. Use '[system]' to refer system assigned identity. Currently only system assigned identity is supported.", is_preview=True)
+        c.argument('is_restore_request', options_list=['--is-restore-request', '-r'], arg_type=get_three_state_flag(), help="Restore from an existing/deleted account.", is_preview=True, arg_group='Restore')
+        c.argument('restore_source', help="The restorable-database-account Id of the source account from which the account has to be restored. Required if --is-restore-request is set to true.", is_preview=True, arg_group='Restore')
+        c.argument('restore_timestamp', action=UtcDatetimeAction, help="The timestamp to which the account has to be restored to. Required if --is-restore-request is set to true.", is_preview=True, arg_group='Restore')
+        c.argument('databases_to_restore', nargs='+', action=CreateDatabaseRestoreResource, is_preview=True, arg_group='Restore')
 
     for scope in ['cosmosdb create', 'cosmosdb update']:
         with self.argument_context(scope) as c:
@@ -89,6 +93,7 @@ def load_arguments(self, _):
             c.argument('backup_retention', type=int, help="the time(in hours) for which each backup is retained (only for accounts with periodic mode backups)", arg_group='Backup Policy')
             c.argument('server_version', arg_type=get_enum_type(ServerVersion), help="Valid only for MongoDB accounts.", is_preview=True)
             c.argument('default_identity', help="The primary identity to access key vault in CMK related features. e.g. 'FirstPartyIdentity', 'SystemAssignedIdentity' and more.", is_preview=True)
+            c.argument('backup_policy_type', arg_type=get_enum_type(BackupPolicyType), help="The type of backup policy of the account to create", arg_group='Backup Policy')
 
     for scope in ['cosmosdb regenerate-key', 'cosmosdb keys regenerate']:
         with self.argument_context(scope) as c:
@@ -339,3 +344,48 @@ def load_arguments(self, _):
         c.argument('role_definition_name', options_list=['--role-definition-name', '-n'], help="Unique Name of the Role Definition that this Role Assignment refers to. Eg. 'Contoso Reader Role'.")
         c.argument('scope', validator=validate_scope, options_list=['--scope', '-s'], help="Data plane resource path at which this Role Assignment is being granted.")
         c.argument('principal_id', options_list=['--principal-id', '-p'], help="AAD Object ID of the principal to which this Role Assignment is being granted.")
+
+    # Restorable Database Accounts
+    with self.argument_context('cosmosdb restorable-database-account show') as c:
+        c.argument('location', options_list=['--location', '-l'], help="Location", required=False)
+        c.argument('instance_id', options_list=['--instance-id', '-i'], help="InstanceId of the Account", required=False)
+
+    with self.argument_context('cosmosdb restorable-database-account list') as c:
+        c.argument('location', options_list=['--location', '-l'], help="Location", required=False)
+        c.argument('account_name', options_list=['--account-name', '-n'], help="Name of the Account", required=False, id_part=None)
+
+    # Restorable Sql Databases
+    with self.argument_context('cosmosdb sql restorable-database') as c:
+        c.argument('location', options_list=['--location', '-l'], help="Location", required=True)
+        c.argument('instance_id', options_list=['--instance-id', '-i'], help="InstanceId of the Account", required=True)
+
+    # Restorable Sql Containers
+    with self.argument_context('cosmosdb sql restorable-container') as c:
+        c.argument('location', options_list=['--location', '-l'], help="Location", required=True)
+        c.argument('instance_id', options_list=['--instance-id', '-i'], help="InstanceId of the Account", required=True)
+        c.argument('restorable_sql_database_rid', options_list=['--database-rid', '-d'], help="Rid of the database", required=True)
+
+    # Restorable Sql Resources
+    with self.argument_context('cosmosdb sql restorable-resource') as c:
+        c.argument('location', options_list=['--location', '-l'], help="Azure Location of the account", required=True)
+        c.argument('instance_id', options_list=['--instance-id', '-i'], help="InstanceId of the Account", required=True)
+        c.argument('restore_location', options_list=['--restore-location', '-r'], help="The region of the restore.", required=True)
+        c.argument('restore_timestamp_in_utc', options_list=['--restore-timestamp', '-t'], help="The timestamp of the restore", required=True)
+
+    # Restorable Mongodb Databases
+    with self.argument_context('cosmosdb mongodb restorable-database') as c:
+        c.argument('location', options_list=['--location', '-l'], help="Location", required=True)
+        c.argument('instance_id', options_list=['--instance-id', '-i'], help="InstanceId of the Account", required=True)
+
+    # Restorable Mongodb Collections
+    with self.argument_context('cosmosdb mongodb restorable-collection') as c:
+        c.argument('location', options_list=['--location', '-l'], help="Location", required=True)
+        c.argument('instance_id', options_list=['--instance-id', '-i'], help="InstanceId of the Account", required=True)
+        c.argument('restorable_mongodb_database_rid', options_list=['--database-rid', '-d'], help="Rid of the database", required=True)
+
+    # Restorable mongodb Resources
+    with self.argument_context('cosmosdb mongodb restorable-resource') as c:
+        c.argument('location', options_list=['--location', '-l'], help="Azure Location of the account", required=True)
+        c.argument('instance_id', options_list=['--instance-id', '-i'], help="InstanceId of the Account", required=True)
+        c.argument('restore_location', options_list=['--restore-location', '-r'], help="The region of the restore.", required=True)
+        c.argument('restore_timestamp_in_utc', options_list=['--restore-timestamp', '-t'], help="The timestamp of the restore", required=True)
